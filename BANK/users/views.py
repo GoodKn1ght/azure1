@@ -83,7 +83,7 @@ def transfer_funds(request, sender_id):
             with connection.cursor() as cursor:
                 cursor.callproc('transfer_funds', [sender_id, receiver_id, transfer_amount, choice])
             with connection.cursor() as cursor:
-                cursor.execute("SELECT Money_Left FROM user WHERE ID = %s", [sender_id])
+                cursor.execute("SELECT Money_Left FROM users_user WHERE ID = %s", [sender_id])
                 balance = cursor.fetchone()
                 if balance:
                     request.session['balance'] = float(balance[0])  # Convert to float before saving
@@ -91,7 +91,7 @@ def transfer_funds(request, sender_id):
             messages.success(request, 'Transfer completed successfully!')
             return redirect('user_profile')
         except Exception as e:
-            messages.error(request, f'Error during transfer: {str(e)}')
+            messages.error(request, f'porno Error during transfer: {str(e) + 'porno'}')
             return redirect('user_profile')
 
     return render(request, 'myapp/transfer_funds.html')

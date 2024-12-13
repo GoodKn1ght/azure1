@@ -6,7 +6,7 @@ from datetime import datetime
 from django.db import connection
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login
-from decimal import Decimal, InvalidOperation
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -14,84 +14,31 @@ from .models import User
 from .serializers import UserSerializer
 
 def userreg(request):
-    context = {
-        'last_inserted_id': User.objects.last().ID if User.objects.exists() else 0
-    }
-    print(context)
     return render(request, 'myapp/userreg.html', {})
 
-import re
-from datetime import datetime
-from django.shortcuts import render, redirect
-
 def insertuser(request):
-    if request.method == "POST":
-        # Отримати останній ID або встановити 0, якщо таблиця порожня
-        last_inserted_id = User.objects.last().ID if User.objects.exists() else 0
-        vuid = last_inserted_id + 1
-
-        # Отримати дані з форми
-        vuname = request.POST.get('tuname', '').strip()
-        vuemail = request.POST.get('tuemail', '').strip()
-        vucontact = request.POST.get('tucontact', '').strip()
-        vudoc = request.POST.get('tudoc', '').strip()
-        vupass = request.POST.get('tupass', '').strip()
-        vums = request.POST.get('tums', '').strip()
-        terms = '1'
-
-        # Валідація: перевірка заповнених даних
-        errors = []
-        if not vuname:
-            errors.append("Ім'я обов'язкове.")
-        if not vuemail:
-            errors.append("Електронна пошта обов'язкова.")
-        if not vucontact or len(vucontact) != 9 or not vucontact.isdigit():
-            errors.append("Номер телефону має складатися з 9 цифр.")
-        if not vudoc:
-            errors.append("Документ обов'язковий.")
-        if not vupass:
-            errors.append("Пароль обов'язковий.")
-        else:
-            password_pattern = r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
-            if not re.match(password_pattern, vupass):
-                errors.append(
-                    "Пароль має бути довжиною не менше 8 символів, "
-                    "містити хоча б одну літеру, одну цифру та один спеціальний символ."
-                )
-        if not vums:
-            errors.append("Прізвище матері обов'язкове.")
-
-        if errors:
-            # Якщо є помилки, повернути їх на форму
-            return render(request, 'myapp/userreg.html', {
-                'errors': errors,
-                'form_data': request.POST,
-            })
-
-        # Створити об'єкт Person
-        per = Person(ID=vuid, Phone_Number=vucontact, Documents=vudoc, Email=vuemail)
-        per.save()
-
-        # Створити об'єкт User
-        us = User(
-            ID=vuid,
-            Terms_Of_Use=terms,
-            Hashed_Password=vupass,
-            Mother_Surname=vums,
-            Money_Left=1000.0,
-            User_Created=datetime.now()
-        )
-        us.save()
-
-        # Зберегти дані в сесію
-        request.session['user_id'] = us.ID
-        request.session['balance'] = float(us.Money_Left)
-
-        return redirect('user_profile')
-
-    # Якщо метод не POST, повернути сторінку реєстрації
-    return render(request, 'myapp/userreg.html')
-
+    vuid = request.POST['tuid']
+    vuname = request.POST['tuname']
+    vuemail = request.POST['tuemail']
+    vucontact = request.POST['tucontact']
+    vudoc = request.POST['tudoc']
+    vupass = request.POST['tupass']
+    vums = request.POST['tums']
+    terms = '1'
+    per = Person(ID=vuid, Phone_Number=vucontact, Documents=vudoc, Email=vuemail)
+    per.save()
+    us = User(
+        ID=vuid,
+        Terms_Of_Use=terms,
+        Hashed_Password=vupass,
+        Mother_Surname=vums,
+        Money_Left=1000.0,
+        User_Created=datetime.now()
+    )
+    us.save()
+    request.session['user_id'] = us.ID  # Зберегти ID у сесії
+    request.session['balance'] = float(us.Money_Left)
+    return redirect('user_profile')  # виконує перенаправлення на user_profile
 
 def user_profile(request):
     us = request.user  # Отримання поточного користувача
@@ -126,75 +73,26 @@ def userextract(request):
 
 def transfer_funds(request, sender_id):
     if request.method == 'POST':
-        receiver_id = request.POST.get('receiver_id', '').strip()
-        transfer_amount = request.POST.get('transfer_amount', '').strip()
-        choice = request.POST.get('choice', '').strip()
-        errors = []
-
-        # Отримання поточного балансу з сесії
-        current_balance = request.session.get('balance', 0)
-
-        # Валідація введених даних
-        if not receiver_id.isdigit():
-            errors.append("ID отримувача має бути числом.")
-        else:
-            receiver_id = int(receiver_id)
-
-        if not transfer_amount.replace('.', '', 1).isdigit():
-            errors.append("Сума переказу має бути числом.")
-        else:
-            transfer_amount = float(transfer_amount)
-
-        if choice not in ['0', '1']:
-            errors.append("Вибір має бути 0 або 1.")
-        else:
-            choice = bool(int(choice))
-
-        # Перевірка: чи сума транзакції не перевищує поточного балансу
-        if not errors and transfer_amount > current_balance:
-            errors.append(f"Сума переказу не може перевищувати поточний баланс: {current_balance:.2f}")
-
-        if errors:
-            # Якщо є помилки, повертаємо їх на сторінку
-            return render(request, 'myapp/transfer_funds.html', {
-                'errors': errors,
-                'form_data': request.POST,
-                'balance': current_balance  # Поточний баланс
-            })
+        receiver_id = int(request.POST['receiver_id'])
+        transfer_amount = float(request.POST['transfer_amount'])
+        choice = bool(int(request.POST['choice']))  # 1 or 0 for True/False
 
         try:
-            # Виклик процедури
             with connection.cursor() as cursor:
                 cursor.callproc('transfer_funds', [sender_id, receiver_id, transfer_amount, choice])
-
-            # Оновлення балансу
             with connection.cursor() as cursor:
                 cursor.execute("SELECT Money_Left FROM user WHERE ID = %s", [sender_id])
                 balance = cursor.fetchone()
                 if balance:
-                    request.session['balance'] = float(balance[0])  # Зберегти баланс у сесію
+                    request.session['balance'] = float(balance[0])  # Convert to float before saving
 
-            messages.success(request, 'Переказ успішно завершено!')
+            messages.success(request, 'Transfer completed successfully!')
+            return redirect('user_profile')
+        except Exception as e:
+            messages.error(request, f'Error during transfer: {str(e)}')
             return redirect('user_profile')
 
-        except Exception as e:
-            errors.append(f'Помилка під час переказу: {str(e)}')
-            return render(request, 'myapp/transfer_funds.html', {
-                'errors': errors,
-                'form_data': request.POST,
-                'balance': current_balance
-            })
-
-    # Якщо метод не POST, повертаємо сторінку з формою
-    return render(request, 'myapp/transfer_funds.html', {
-        'balance': request.session.get('balance', 0)  # Поточний баланс
-    })
-
-
-    # Якщо метод не POST, просто відобразити форму переказу
-    return render(request, 'myapp/transfer_funds.html', {
-        'balance': request.session.get('balance', 0)  # Поточний баланс
-    })
+    return render(request, 'myapp/transfer_funds.html')
 
 
 def userlog(request):
@@ -245,7 +143,21 @@ def delete_current_user(request):
 
 # yourapp/views.py
 
+def user_list(request):
+    view = UserViewSet.as_view({'get': 'list'})
+    return view(request)
 
+def user_retrieve(request, pk):
+    view = UserViewSet.as_view({'get': 'retrieve'})
+    return view(request, pk=pk)
+
+def user_update(request, pk):
+    view = UserViewSet.as_view({'put': 'update', 'patch': 'partial_update'})
+    return view(request, pk=pk)
+
+def user_delete(request, pk):
+    view = UserViewSet.as_view({'delete': 'destroy'})
+    return view(request, pk=pk)
 
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -263,6 +175,63 @@ from rest_framework.response import Response
 from .models import User
 from .serializer import UserSerializer
 
+
+def userreg(request):
+    return render(request, 'myapp/userreg.html', {})
+
+def insertuser(request):
+    vuid = request.POST['tuid']
+    vuname = request.POST['tuname']
+    vuemail = request.POST['tuemail']
+    vucontact = request.POST['tucontact']
+    vudoc = request.POST['tudoc']
+    vupass = request.POST['tupass']
+    vums = request.POST['tums']
+    terms = '1'
+    per = Person(ID=vuid, Phone_Number=vucontact, Documents=vudoc, Email=vuemail)
+    per.save()
+    us = User(
+        ID=vuid,
+        Terms_Of_Use=terms,
+        Hashed_Password=vupass,
+        Mother_Surname=vums,
+        Money_Left=1000.0,
+        User_Created=datetime.now()
+    )
+    us.save()
+    request.session['user_id'] = us.ID  # Зберегти ID у сесії
+    request.session['balance'] = float(us.Money_Left)
+    return redirect('user_profile')  # виконує перенаправлення на user_profile
+
+def user_profile(request):
+    us = request.user  # Отримання поточного користувача
+    return render(request, 'myapp/user_profile.html', {'us': us})
+
+
+
+def userextract(request):
+    user_id = request.session.get('user_id')  # Отримуємо ID користувача з сесії
+    if not user_id:
+        return redirect('userlog')  # Якщо ID не знайдено, перенаправляємо на сторінку входу
+
+    with connection.cursor() as cursor:
+        cursor.callproc('TakeExtract', [user_id])
+
+        total_summary = cursor.fetchall()
+
+        cursor.nextset()
+        columns = [col[0] for col in cursor.description]
+        operation_details = [
+            dict(zip(columns, row))
+            for row in cursor.fetchall()
+        ]
+
+    return render(request, "myapp/user_extract.html", {
+        'total_summary': total_summary,
+        'operation_details': operation_details
+    })
+
+
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.db import connection
@@ -270,6 +239,35 @@ from django.db import connection
 from django.shortcuts import redirect, render
 from django.contrib import messages
 from django.db import connection
+
+
+def transfer_funds(request, sender_id):
+    if request.method == 'POST':
+        receiver_id = int(request.POST['receiver_id'])
+        transfer_amount = float(request.POST['transfer_amount'])
+        choice = bool(int(request.POST['choice']))  # 1 або 0 для True/False
+
+        try:
+            # Виконання процедури транзакції
+            with connection.cursor() as cursor:
+                cursor.callproc('transfer_funds', [sender_id, receiver_id, transfer_amount, choice])
+
+            # Оновлення балансу в сесії
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT Money_Left FROM users_user WHERE ID = %s", [sender_id])
+                balance = cursor.fetchone()
+                if balance:
+                    request.session['balance'] = float(balance[0])  # Зберігаємо актуальний баланс у сесії
+
+            # Повідомлення про успіх
+            messages.success(request, 'Транзакція успішно виконана!')
+            return redirect('user_profile')  # Повертаємо користувача до його профілю
+        except Exception as e:
+            # Повідомлення про помилку
+            messages.error(request, f'Помилка під час транзакції: {str(e)}')
+            return redirect('user_profile')
+
+    return render(request, 'myapp/transfer_funds.html')
 
 
 from django.http import JsonResponse
@@ -329,57 +327,6 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(ID__range=(1, 100))
     serializer_class = UserSerializer
 
-    def list(self, request, *args, **kwargs):
-        # Обробка запиту GET на список користувачів
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def retrieve(self, request, pk=None, *args, **kwargs):
-        # Обробка запиту GET на отримання одного користувача
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    from decimal import Decimal
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        if 'Terms_Of_Use' in request.data and len(request.data['Terms_Of_Use']) < 5:
-            return Response({"error": "Terms_Of_Use must be at least 5 characters long"},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        if 'Money_Left' in request.data:
-            try:
-                money_left = Decimal(request.data['Money_Left'])
-                if money_left < 0:
-                    return Response({"error": "Money_Left cannot be negative"}, status=status.HTTP_400_BAD_REQUEST)
-            except (ValueError, InvalidOperation):
-                return Response({"error": "Money_Left must be a valid number"}, status=status.HTTP_400_BAD_REQUEST)
-
-        self.perform_create(serializer)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        if 'Money_Left' in request.data and request.data['Money_Left'] < 0:
-            return Response({"error": "Money_Left cannot be negative"}, status=status.HTTP_400_BAD_REQUEST)
-
-        self.perform_update(serializer)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response({"message": "User deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
 
 def user_create(request):
     if request.method == 'POST':
@@ -419,6 +366,24 @@ def user_create(request):
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def user_list(request):
+    view = UserViewSet.as_view({'get': 'list'})
+    return view(request)
+
+def user_retrieve(request, pk):
+    view = UserViewSet.as_view({'get': 'retrieve'})
+    return view(request, pk=pk)
+
+def user_update(request, pk):
+    view = UserViewSet.as_view({'put': 'update', 'patch': 'partial_update'})
+    return view(request, pk=pk)
+
+def user_delete(request, pk):
+    view = UserViewSet.as_view({'delete': 'destroy'})
+    return view(request, pk=pk)
+
 from django.shortcuts import render
 from django.db import connection
 import pandas as pd

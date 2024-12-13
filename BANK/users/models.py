@@ -8,7 +8,7 @@ class User(models.Model):
     User_Created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'user'
+        db_table = 'users_user'
 
 class Person(models.Model):
     ID = models.AutoField(primary_key=True)
