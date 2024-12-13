@@ -4,12 +4,15 @@ import os
 import sys
 from django.core.management.commands.runserver import Command as runserver
 
+from BANK.wsgi import settings_module
+
 # Встановлюємо порт за замовчуванням
 runserver.default_port = "8080"
 
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'BANK.settings')
+    settings_module = 'BANK.deployment' if 'WEBSITE_HOST' in os.environ else 'BANK.settings'
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', settings_module)
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
